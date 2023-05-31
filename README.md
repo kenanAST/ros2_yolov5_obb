@@ -12,5 +12,5 @@ This repository contains a ROS2 implementation of the YOLOv5_OBB object detectio
 
 ### Prerequisites
 
-- ROS2 (tested with Gactic)
+- ROS2 (tested with Galactic)
 
