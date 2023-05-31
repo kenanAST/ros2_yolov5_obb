@@ -19,7 +19,7 @@ def obb_nms(dets, scores, iou_thr, device_id=None):
         dets_th = dets
     elif isinstance(dets, np.ndarray):
         is_numpy = True
-        device = 'cpu' if device_id is None else f'cuda:{device_id}'
+        device = '0' if device_id is None else f'cuda:{device_id}'
         dets_th = torch.from_numpy(dets).to(device)
     else:
         raise TypeError('dets must be eithr a Tensor or numpy array, '
@@ -34,6 +34,7 @@ def obb_nms(dets, scores, iou_thr, device_id=None):
             inds = dets_th.new_zeros(0, dtype=torch.int64)
         else:
             ori_inds = torch.arange(dets_th.size(0)) # 0 ~ n-1
+            ori_inds = ori_inds.to(dets_th.device)
             ori_inds = ori_inds[~too_small]
             dets_th = dets_th[~too_small] # (n_filter, 5)
             scores = scores[~too_small]

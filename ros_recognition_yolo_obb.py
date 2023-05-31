@@ -54,7 +54,7 @@ class CameraSubscriber(Node):
         self.hide_conf = False  # hide confidences
         self.half = False  # use FP16 half-precision inference
         self.stride = 32
-        self.device_num = 'cpu'  # cuda device, i.e. 0 or 0,1,2,3 or cpu
+        self.device_num = ''  # cuda device, i.e. 0 or 0,1,2,3 or cpu
         self.dnn = False
         self.data = 'data/coco128.yaml'  # dataset.yaml path
         self.half = False  # use FP16 half-precision inference
