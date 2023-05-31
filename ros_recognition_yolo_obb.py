@@ -29,34 +29,39 @@ from utils.rboxs_utils import poly2rbox, rbox2poly
 
 bridge = CvBridge()
 
-class Camera_subscriber(Node):
+class CameraSubscriber(Node):
 
     def __init__(self):
         super().__init__('camera_subscriber')
 
-        weights='yolov5s.pt'  # model.pt path(s)
-        self.imgsz=(640, 480)  # inference size (pixels)
-        self.conf_thres=0.25  # confidence threshold
-        self.iou_thres=0.45  # NMS IOU threshold
-        self.max_det=1000  # maximum detections per image
-        self.device=''
-        self.classes=None  # filter by class: --class 0, or --class 0 2 3
-        self.agnostic_nms=False  # class-agnostic NMS
-        self.augment=False  # augmented inference
-        self.visualize=False  # visualize features
-        self.line_thickness=3  # bounding box thickness (pixels)
-        self.hide_labels=False  # hide labels
-        self.hide_conf=False  # hide confidences
-        self.half=False  # use FP16 half-precision inference
+        weights = 'kenan200.pt'  # model.pt path(s)
+        self.imgsz = (640, 480)  # inference size (pixels)
+        self.conf_thres = 0.25  # confidence threshold
+        self.iou_thres = 0.45  # NMS IOU threshold
+        self.max_det = 1000  # maximum detections per image
+        self.device = ''  # device index
+        self.view_img=False,  # show results
+        self.save_txt=False,  # save results to *.txt
+        self.save_conf=False,  # save confidences in --save-txt labels
+        self.save_crop=False,  # save cropped prediction boxes
+        self.nosave=False,  # do not save images/videos
+        self.classes = None  # filter by class: --class 0, or --class 0 2 3
+        self.agnostic_nms = False  # class-agnostic NMS
+        self.augment = False  # augmented inference
+        self.visualize = False  # visualize features
+        self.line_thickness = 3  # bounding box thickness (pixels)
+        self.hide_labels = False  # hide labels
+        self.hide_conf = False  # hide confidences
+        self.half = False  # use FP16 half-precision inference
         self.stride = 32
-        device_num=''  # cuda device, i.e. 0 or 0,1,2,3 or cpu
+        self.device_num = 'cpu'  # cuda device, i.e. 0 or 0,1,2,3 or cpu
         self.dnn = False
-        self.data= 'data/coco128.yaml'  # dataset.yaml path
-        self.half=False  # use FP16 half-precision inference
-        self.augment=False  # augmented inferenc
+        self.data = 'data/coco128.yaml'  # dataset.yaml path
+        self.half = False  # use FP16 half-precision inference
+        self.augment = False  # augmented inference
 
         # Initialize
-        self.device = select_device(device_num)
+        self.device = select_device(self.device_num)
 
         # Load model
         self.model = DetectMultiBackend(weights, device=self.device, dnn=self.dnn)
@@ -79,7 +84,7 @@ class Camera_subscriber(Node):
 
         # Letterbox
         img0 = img.copy()
-        img = img[np.newaxis, :, :, :]        
+        img = img[np.newaxis, :, :, :]
 
         # Stack
         img = np.stack(img, 0)
@@ -88,8 +93,9 @@ class Camera_subscriber(Node):
         img = img[..., ::-1].transpose((0, 3, 1, 2))  # BGR to RGB, BHWC to BCHW
         img = np.ascontiguousarray(img)
 
+        half = self.half and self.device.type != 'cpu'  # half precision only supported by PyTorch on CUDA
         img = torch.from_numpy(img).to(self.model.device)
-        img = img.half() if self.model.fp16 else img.float()  # uint8 to fp16/32
+        img = img.half() if half else img.float()  # uint8 to fp16/32
         img /= 255  # 0 - 255 to 0.0 - 1.0
         if len(img.shape) == 3:
             img = img[None]  # expand for batch dim
@@ -99,17 +105,17 @@ class Camera_subscriber(Node):
         pred = self.model(img, augment=self.augment, visualize=visualize)
 
         # Apply NMS
-        pred = non_max_suppression_obb(pred, self.conf_thres, self.iou_thres, self.classes, self.agnostic_nms, multiLabel=True, max_det=self.max_det)
+        pred = non_max_suppression_obb(pred, self.conf_thres, self.iou_thres, self.classes, self.agnostic_nms, multi_label=True, max_det=self.max_det)
 
         # Process detections
         for i, det in enumerate(pred):  # detections per image
             s = f'{i}: '
             s += '%gx%g ' % img.shape[2:]  # print string
-            pred_poly = rbox2poly(det[:, :5]) # (n, [x1 y1 x2 y2 x3 y3 x4 y4])
+            pred_poly = rbox2poly(det[:, :5])  # (n, [x1 y1 x2 y2 x3 y3 x4 y4])
             annotator = Annotator(img0, line_width=self.line_thickness, example=str(self.names))
             if len(det):
-                pred_poly = scale_polys(im.shape[2:], pred_poly, im0.shape)
-                det = torch.cat((pred_poly, det[:, -2:]), dim=1) # (n, [poly conf cls])
+                pred_poly = scale_polys(img.shape[2:], pred_poly, img0.shape)
+                det = torch.cat((pred_poly, det[:, -2:]), dim=1)  # (n, [poly conf cls])
 
                 # Print results
                 for c in det[:, -1].unique():
@@ -117,18 +123,16 @@ class Camera_subscriber(Node):
                     s += f"{n} {self.names[int(c)]}{'s' * (n > 1)}, "  # add to string
                 
                 for *poly, conf, cls in reversed(det):
-                    poly = poly.tolist()
                     c = int(cls)  # integer class
                     label = None if self.hide_labels else (self.names[c] if self.hide_conf else f'{self.names[c]} {conf:.2f}')
                     annotator.poly_label(poly, label, color=colors(c, True))
 
 
         cv2.imshow("IMAGE", img0)
-        cv2.waitKey(4)    
+        cv2.waitKey(4)
 
 if __name__ == '__main__':
     rclpy.init(args=None)
-    camera_subscriber = Camera_subscriber()
+    camera_subscriber = CameraSubscriber()
     rclpy.spin(camera_subscriber)
     rclpy.shutdown()
-
